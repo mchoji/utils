@@ -1,4 +1,4 @@
-# parseJSONFromDir.py
+# parseJSONFromDir
 
 Given a set of directories, look for files containing lists of objects in JSON format.
 Parse all of them and generate a pandas' DataFrame from their content, outputing
