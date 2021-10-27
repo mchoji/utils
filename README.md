@@ -37,8 +37,9 @@ There is a README inside each directory with description and usage example for e
 Some tools rely solely on built-in libraries, which make them easier to symlink to `bin`
 directory of your choice.
 
-The following are pure Python scripts:
+The following are pure Python or shell scripts:
   - [quote](quote)
+  - [android-burp-cert](android-burp-cert)
 
 
 ## License
