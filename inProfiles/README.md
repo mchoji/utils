@@ -26,6 +26,17 @@ In order to generate a list with people data and their corresponding inferred e-
   ![Filter api result](images/linkedin-filter-api-requests.png)
   1. Save results in a preferably empty directory and run script
 
+
+### Tip
+
+The method above could bring a few junk data since the aforementioned API will be used to fetch information about your
+current connections while you navigate on the site.
+
+Another aproach is to go to People search (from homepage not company one), filter by "Current Company" and other fields of your interest.
+The result will be spread in pages (which you can reach by clicking "Next" instead of scrolling).
+Once you reach the end, go to Burp and filter GET requests containing `/voyager/api/voyagerSearchDashLazyLoadedActions`.
+From this point, follow the procedure above.
+
   
 ## Help
 
@@ -66,3 +77,7 @@ optional arguments:
 ```
 poetry run ./inProfiles.py -d contoso.com burp-base64-dir > profiles.csv
 ```
+
+Filter out your own profile (which comes together in some results)
+```
+poetry run ./inProfiles.py -d contoso.com --query "publicIdentifier != 'your-id'" burp-base64-dir  > profiles.csv

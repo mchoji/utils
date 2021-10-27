@@ -38,6 +38,16 @@ from defusedxml.ElementTree import parse
 logging.basicConfig(level=logging.INFO)
 
 email_patterns = ['first.last', 'first', 'last', 'flast']
+profile_types = {
+        "voyager_miniprofile": "com.linkedin.voyager.identity.shared.MiniProfile",
+        "voyager_profile": "com.linkedin.voyager.dash.identity.profile.Profile",
+        }
+
+
+class ParseError(Exception):
+    """Base class for profile parsing exceptions"""
+    pass
+
 
 parser = argparse.ArgumentParser(description="Parse Burp's saved items from LinkedIn data")
 parser.add_argument(
@@ -162,6 +172,50 @@ def infer_email(name: str, surname: str, domain: str, pattern: str) -> str:
     return (strip_accents(user).strip('.') + "@" + domain).lower()
 
 
+
+def parse_profile(obj: dict, ptype: str, supported_types: dict) -> dict:
+    """Parse LinkedIn profile as found in JSON responses into
+    a dictionary containing only properties of interest"""
+    if ptype not in supported_types.values():
+        raise ValueError(f"Type {ptype} not supported")
+
+    # use regex to avoid garbage like (...) or [..] at the end of name
+    # it won't work if name starts with something else
+    fullName = re.search(r'^[^\[\]{}()\'"\-|]+',
+                    entry.get('firstName', '') + ' ' + entry.get('lastName', ''))
+    if fullName is None:
+        logging.warning("Could not parse full name from '%s'",
+                entry['firstName'] + ' ' + entry['lastName'])
+        raise ParseError("Unable to parse full name")
+
+    fullName = fullName.group(0).title()
+    name_fields = fullName.split()
+    if len(name_fields) < 2:
+        logging.warning("Full name '%s' is too short", fullName)
+        raise ParseError("Full name too short")
+
+    person['fullName'] = fullName
+    person['firstName'] = name_fields[0]
+    if name_fields[-1].lower() in ['jr.', 'jr', 'junior'] and \
+            name_fields[-2] != name_fields[0]:
+        person['lastName'] = name_fields[-2]
+    else:
+        person['lastName'] = name_fields[-1]
+
+    person['publicIdentifier'] = entry.get('publicIdentifier', '')
+
+    if ptype == supported_types['voyager_miniprofile']:
+        person['occupation'] = entry.get('occupation', '').replace("\n", ". ")
+    elif ptype == supported_types['voyager_profile']:
+        person['headline'] = entry.get('headline', '').replace("\n", ". ")
+
+    person['email'] = infer_email(person['firstName'],
+            person['lastName'], args.domain, args.pattern)
+
+    return person
+
+
+
 if (args.silent):
     logging.disable()
 
@@ -209,40 +263,23 @@ for file in file_list:
             continue
 
         for entry in obj['included']:
-            if '$type' not in entry.keys() or \
-                entry['$type'] != 'com.linkedin.voyager.identity.shared.MiniProfile':
-                    continue
+            if '$type' not in entry.keys():
+                continue
+            if entry['$type'] not in profile_types.values():
+                continue
 
             # get profile information
             person = {}
-            # use regex to avoid garbage like (...) or [..] at the end of name
-            # it won't work if name starts with something else
-            fullName = re.search(r'^[^\[\]{}()\'"\-|]+',
-                    entry['firstName'] + ' ' + entry['lastName'])
-            if fullName is None:
-                logging.warning("Could not parse full name from '%s'",
-                        entry['firstName'] + ' ' + entry['lastName'])
+            try:
+                person = parse_profile(entry, entry['$type'], profile_types)
+            except ValueError:
+                logging.error("Unsupported type %s", entry['$type'])
                 continue
-
-            fullName = fullName.group(0)
-            name_fields = fullName.split()
-            if len(name_fields) < 2:
-                logging.warning("Full name '%s' is too short", fullName)
+            except ParseError as e:
+                logging.error(e)
                 continue
-
-            person['fullName'] = fullName
-            person['firstName'] = name_fields[0]
-            if name_fields[-1].lower() in ['jr.', 'jr', 'junior'] and \
-                name_fields[-2] != name_fields[0]:
-                    person['lastName'] = name_fields[-2]
             else:
-                person['lastName'] = name_fields[-1]
-            person['occupation'] = entry['occupation']
-            person['publicIdentifier'] = entry['publicIdentifier']
-            person['email'] = infer_email(person['firstName'],
-                    person['lastName'], args.domain, args.pattern)
-            
-            people.append(person)
+                people.append(person)
 
         logging.info("Current profiles count: %d", len(people))
 # end of responses parsing
