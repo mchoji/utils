@@ -154,9 +154,12 @@ def strip_accents(text):
 
 def infer_email(name: str, otherNames: List[str], domain: str, pattern: str) -> str:
     """Infer a person's email based on name, surname/middlenames and pattern"""
-    assert name is not None and otherNames is not None \
+    assert name is not None \
         and domain is not None and pattern is not None \
-        and name != "" and len(otherNames) > 0 and domain != "" and pattern != ""
+        and name != "" and domain != "" and pattern != ""
+    if pattern != 'first':
+        assert otherNames is not None \
+            and len(otherNames) > 0
 
     if pattern not in email_patterns:
         raise ValueError("Unexpected email pattern")
