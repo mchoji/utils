@@ -79,5 +79,21 @@ poetry run ./inProfiles.py -d contoso.com burp-base64-dir > profiles.csv
 ```
 
 Filter out your own profile (which comes together in some results)
+
 ```
 poetry run ./inProfiles.py -d contoso.com --query "publicIdentifier != 'your-id'" burp-base64-dir  > profiles.csv
+```
+
+### Note
+
+If a pattern containing surname have been chosen, this tool will try to infer e-mails based not only on surnames but also on middle names.
+The e-mails will be contained in a "|"-separated string, in the last column by default.
+
+
+### Tip
+Once you have the profiles saved in a file, you can easily get a list of emails with
+
+```
+awk -F, '{print $(NF)}' profiles.csv | grep @ | tr '|' '\n'
+```
+

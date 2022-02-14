@@ -34,6 +34,7 @@ import unicodedata
 from base64 import b64decode
 from pathlib import Path
 from defusedxml.ElementTree import parse
+from typing import List
 
 logging.basicConfig(level=logging.INFO)
 
@@ -151,25 +152,26 @@ def strip_accents(text):
     return str(text)
 
 
-def infer_email(name: str, surname: str, domain: str, pattern: str) -> str:
-    """Infer a person's email based on name, surname and pattern"""
-    assert name is not None and surname is not None \
+def infer_email(name: str, otherNames: List[str], domain: str, pattern: str) -> str:
+    """Infer a person's email based on name, surname/middlenames and pattern"""
+    assert name is not None and otherNames is not None \
         and domain is not None and pattern is not None \
-        and name != "" and surname != "" and domain != "" and pattern != ""
+        and name != "" and len(otherNames) > 0 and domain != "" and pattern != ""
 
     if pattern not in email_patterns:
         raise ValueError("Unexpected email pattern")
-    user = ""
+    user = []
     if pattern == 'first.last':
-        user = f'{name}.{surname}'
+        user = [f'{name}.{surname}' for surname in otherNames]
     elif pattern == 'flast':
-        user = f'{name[0]}{surname}'
+        user = [f'{name[0]}{surname}' for surname in otherNames]
     elif pattern == 'first':
-        user = name
+        user.append(name)
     elif pattern == 'last':
-        user = surname
+        user = otherNames
 
-    return (strip_accents(user).strip('.') + "@" + domain).lower()
+    emails = map(lambda x: strip_accents(x).strip('.').lower() + "@" + domain, user)
+    return ("|".join(list(emails)))
 
 
 
@@ -188,19 +190,30 @@ def parse_profile(obj: dict, ptype: str, supported_types: dict) -> dict:
                 entry['firstName'] + ' ' + entry['lastName'])
         raise ParseError("Unable to parse full name")
 
-    fullName = fullName.group(0).title()
+    fullName = fullName.group(0).lower()
+
+    # remove undesirable characters
+    fullName = fullName.translate({ord(c): None for c in "._!,;"})
     name_fields = fullName.split()
     if len(name_fields) < 2:
         logging.warning("Full name '%s' is too short", fullName)
         raise ParseError("Full name too short")
 
-    person['fullName'] = fullName
-    person['firstName'] = name_fields[0]
-    if name_fields[-1].lower() in ['jr.', 'jr', 'junior'] and \
-            name_fields[-2] != name_fields[0]:
-        person['lastName'] = name_fields[-2]
-    else:
-        person['lastName'] = name_fields[-1]
+    # replace jr by junior
+    if name_fields[-1] in ['jr.', 'jr']:
+        name_fields[-1] = 'junior'
+
+    person['fullName'] = fullName.title()
+    person['firstName'] = name_fields[0].title()
+    person['lastName'] = name_fields[-1].title()
+
+    otherNames = name_fields[1:]
+    # remove some elements
+    for x in ['de', 'da', 'do', 'das', 'dos']:
+        if x in otherNames:
+            otherNames.remove(x)
+    # also, remove single letter names
+    otherNames = list(filter(lambda x: len(x) > 1, otherNames))
 
     person['publicIdentifier'] = entry.get('publicIdentifier', '')
 
@@ -209,8 +222,13 @@ def parse_profile(obj: dict, ptype: str, supported_types: dict) -> dict:
     elif ptype == supported_types['voyager_profile']:
         person['headline'] = entry.get('headline', '').replace("\n", ". ")
 
-    person['email'] = infer_email(person['firstName'],
-            person['lastName'], args.domain, args.pattern)
+    try:
+        person['email'] = infer_email(name_fields[0],
+                            otherNames, args.domain, args.pattern)
+    except AssertionError:
+        logging.warning("Could not infer email from '%s'", ' '.join(name_fields))
+        person['email'] = ''
+
 
     return person
 
