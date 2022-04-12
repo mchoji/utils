@@ -42,6 +42,7 @@ email_patterns = ['first.last', 'first', 'last', 'flast']
 profile_types = {
         "voyager_miniprofile": "com.linkedin.voyager.identity.shared.MiniProfile",
         "voyager_profile": "com.linkedin.voyager.dash.identity.profile.Profile",
+        "voyager_entityresult": "com.linkedin.voyager.dash.search.EntityResultViewModel"
         }
 
 
@@ -178,27 +179,40 @@ def infer_email(name: str, otherNames: List[str], domain: str, pattern: str) -> 
 
 
 
-def parse_profile(obj: dict, ptype: str, supported_types: dict) -> dict:
+def parse_profile(entry: dict, ptype: str, supported_types: dict) -> dict:
     """Parse LinkedIn profile as found in JSON responses into
     a dictionary containing only properties of interest"""
+    if entry is None:
+        raise ValueError(f"entry should not be None")
     if ptype not in supported_types.values():
         raise ValueError(f"Type {ptype} not supported")
 
-    # use regex to avoid garbage like (...) or [..] at the end of name
-    # it won't work if name starts with something else
-    fullName = re.search(r'^[^\[\]{}()\'"\-|]+',
-                    entry.get('firstName', '') + ' ' + entry.get('lastName', ''))
-    if fullName is None:
-        logging.warning("Could not parse full name from '%s'",
-                entry['firstName'] + ' ' + entry['lastName'])
-        raise ParseError("Unable to parse full name")
+    # com.linkedin.voyager.dash.search.EntityResultViewModel
+    if ptype == supported_types['voyager_entityresult']:
+        if not (fullName := entry["title"]["text"]):
+            raise ValueError(f"Full name not found for {ptype}")
+        fullName = fullName.lower()
+    else:
+        # use regex to avoid garbage like (...) or [..] at the end of name
+        # it won't work if name starts with something else
+        fullName = re.search(r'^[^\[\]{}()\'"\-|]+',
+                        entry.get('firstName', '') + ' ' + entry.get('lastName', ''))
+        if fullName is None:
+            logging.warning("Could not parse full name from '%s'",
+                    entry['firstName'] + ' ' + entry['lastName'])
+            raise ParseError("Unable to parse full name")
 
-    fullName = fullName.group(0).lower()
-
+        fullName = fullName.group(0).lower()
+    
+    # ignore anonymous linkedin member
+    if fullName == "linkedin member":
+        raise ParseError("Anonymous Linkedin Member")
     # remove undesirable characters
     fullName = fullName.translate({ord(c): None for c in "._!,;"})
     name_fields = fullName.split()
-    if len(name_fields) < 2:
+    # remove blank fields
+    name_fields = [n for n in name_fields if n != '' and n != ' ']
+    if len(name_fields) < 1:
         logging.warning("Full name '%s' is too short", fullName)
         raise ParseError("Full name too short")
 
@@ -208,7 +222,7 @@ def parse_profile(obj: dict, ptype: str, supported_types: dict) -> dict:
 
     person['fullName'] = fullName.title()
     person['firstName'] = name_fields[0].title()
-    person['lastName'] = name_fields[-1].title()
+    person['lastName'] = name_fields[-1].title() if len(name_fields) > 1 else ''
 
     otherNames = name_fields[1:]
     # remove some elements
@@ -224,6 +238,12 @@ def parse_profile(obj: dict, ptype: str, supported_types: dict) -> dict:
         person['occupation'] = entry.get('occupation', '').replace("\n", ". ")
     elif ptype == supported_types['voyager_profile']:
         person['headline'] = entry.get('headline', '').replace("\n", ". ")
+    elif ptype == supported_types['voyager_entityresult']:
+        if (summary := entry.get('summary')) and (occupation := summary.get('text')):
+            person['occupation'] = occupation
+            # Example: "Current: system analyst at Company"
+            if person['occupation'].startswith("Current: "):
+                person['occupation'] = person['occupation'].split(' ', 1)[1]
 
     try:
         person['email'] = infer_email(name_fields[0],

@@ -34,7 +34,7 @@ current connections while you navigate on the site.
 
 Another aproach is to go to People search (from homepage not company one), filter by "Current Company" and other fields of your interest.
 The result will be spread in pages (which you can reach by clicking "Next" instead of scrolling).
-Once you reach the end, go to Burp and filter GET requests containing `/voyager/api/voyagerSearchDashLazyLoadedActions`.
+Once you reach the end, go to Burp and filter GET requests containing ~~`/voyager/api/voyagerSearchDashLazyLoadedActions`~~ `/voyager/api/search`.
 From this point, follow the procedure above.
 
   
