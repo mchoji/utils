@@ -92,9 +92,10 @@ parser.add_argument(
 parser.add_argument(
         "--columns",
         nargs='+',
-        help="Columns to write to output",
+        help="Columns to write to output (default: %(default)s)",
         dest="columns",
-        metavar="COLUMN"
+        metavar="COLUMN",
+        default="email,fullName,firstName,lastName,publicIdentifier,occupation,headline".split(",")
         )
 parser.add_argument(
         "--drop-columns",
@@ -235,15 +236,18 @@ def parse_profile(entry: dict, ptype: str, supported_types: dict) -> dict:
     person['publicIdentifier'] = entry.get('publicIdentifier', '')
 
     if ptype == supported_types['voyager_miniprofile']:
-        person['occupation'] = entry.get('occupation', '').replace("\n", ". ")
+        person['occupation'] = entry.get('occupation').replace("\n", ". ") if entry['occupation'] else ''
     elif ptype == supported_types['voyager_profile']:
-        person['headline'] = entry.get('headline', '').replace("\n", ". ")
+        person['headline'] = entry.get('headline', '').replace("\n", ". ") if entry['headline'] else ''
     elif ptype == supported_types['voyager_entityresult']:
         if (summary := entry.get('summary')) and (occupation := summary.get('text')):
-            person['occupation'] = occupation
-            # Example: "Current: system analyst at Company"
-            if person['occupation'].startswith("Current: "):
-                person['occupation'] = person['occupation'].split(' ', 1)[1]
+            person['occupation'] = occupation.replace("\n", ". ")
+        elif (summary := entry.get('primarySubtitle')) and (occupation := summary.get('text')):
+            person['occupation'] = occupation.replace("\n", ". ")
+        # Example: "Current: system analyst at Company"
+        if person['occupation'].startswith("Current: "):
+            person['occupation'] = person['occupation'].split(' ', 1)[1].replace("\n", ". ")
+
 
     try:
         person['email'] = infer_email(name_fields[0],
