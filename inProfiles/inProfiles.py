@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # MIT License
-# 
+#
 # Copyright (c) 2021 M. Choji
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -66,8 +66,8 @@ parser.add_argument(
 parser.add_argument(
         "-p",
         "--pattern",
-        help="Email pattern (default: %(default)s)",
-        choices=email_patterns,
+        help=f"Comma-separated email patterns (default: %(default)s) (options: {','.join(email_patterns)})",
+        type=str,
         default='first.last',
         )
 parser.add_argument(
@@ -146,7 +146,7 @@ def strip_accents(text):
     """
     try:
         text = unicode(text, 'utf-8')
-    except (TypeError, NameError): # unicode is a default on python 3 
+    except (TypeError, NameError): # unicode is a default on python 3
         pass
     text = unicodedata.normalize('NFD', text)
     text = text.encode('ascii', 'ignore')
@@ -159,21 +159,31 @@ def infer_email(name: str, otherNames: List[str], domain: str, pattern: str) -> 
     assert name is not None \
         and domain is not None and pattern is not None \
         and name != "" and domain != "" and pattern != ""
-    if pattern != 'first':
-        assert otherNames is not None \
-            and len(otherNames) > 0
 
-    if pattern not in email_patterns:
+    # if pattern != 'first':
+    #     assert otherNames is not None \
+    #         and len(otherNames) > 0
+    patterns = pattern.split(',')
+
+    if all(list(map(lambda x: x not in email_patterns, patterns))):
         raise ValueError("Unexpected email pattern")
     user = []
-    if pattern == 'first.last':
-        user = [f'{name}.{surname}' for surname in otherNames]
-    elif pattern == 'flast':
-        user = [f'{name[0]}{surname}' for surname in otherNames]
-    elif pattern == 'first':
-        user.append(name)
-    elif pattern == 'last':
-        user = otherNames
+    for pattern in patterns:
+        if pattern not in email_patterns:
+            continue
+        if pattern == 'first.last':
+            user.extend([f'{name}.{surname}' for surname in otherNames])
+        elif pattern == 'flast':
+            user.extend([f'{name[0]}{surname}' for surname in otherNames])
+        elif pattern == 'first':
+            user.append(name)
+        elif pattern == 'last':
+            user.extend(otherNames)
+
+    # remove invalid chars from begining and end
+    user = list(map(lambda x: x.strip('.,;'), user))
+    # remove duplicates
+    user = list(set(user))
 
     emails = map(lambda x: strip_accents(x).strip('.').lower() + "@" + domain, user)
     return ("|".join(list(emails)))
@@ -204,7 +214,7 @@ def parse_profile(entry: dict, ptype: str, supported_types: dict) -> dict:
             raise ParseError("Unable to parse full name")
 
         fullName = fullName.group(0).lower()
-    
+
     # ignore anonymous linkedin member
     if fullName == "linkedin member":
         raise ParseError("Anonymous Linkedin Member")
@@ -238,7 +248,7 @@ def parse_profile(entry: dict, ptype: str, supported_types: dict) -> dict:
     if ptype == supported_types['voyager_miniprofile']:
         person['occupation'] = entry.get('occupation').replace("\n", ". ") if entry['occupation'] else ''
     elif ptype == supported_types['voyager_profile']:
-        person['headline'] = entry.get('headline', '').replace("\n", ". ") if entry['headline'] else ''
+        person['headline'] = entry.get('headline', '').replace("\n", ". ") if 'headline' in entry and entry['headline'] is not None else ''
     elif ptype == supported_types['voyager_entityresult']:
         if (summary := entry.get('summary')) and (occupation := summary.get('text')):
             person['occupation'] = occupation.replace("\n", ". ")
@@ -282,7 +292,7 @@ for file in file_list:
     except:
         logging.error("Unable to parse file %s as XML", file)
         continue
-    
+
     root = et.getroot()
     if root.tag != 'items':
         logging.error("Unexpected root element '%s'", root.tag)
@@ -345,4 +355,3 @@ else:
         logging.info("Dropping columns from result...")
         result_df.drop(columns=args.dropc, inplace=True)
     print(result_df.to_csv(index=False, columns=args.columns))
-
