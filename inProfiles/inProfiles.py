@@ -255,7 +255,7 @@ def parse_profile(entry: dict, ptype: str, supported_types: dict) -> dict:
         elif (summary := entry.get('primarySubtitle')) and (occupation := summary.get('text')):
             person['occupation'] = occupation.replace("\n", ". ")
         # Example: "Current: system analyst at Company"
-        if person['occupation'].startswith("Current: "):
+        if person.get('occupation') and person['occupation'].startswith("Current: "):
             person['occupation'] = person['occupation'].split(' ', 1)[1].replace("\n", ". ")
 
 
