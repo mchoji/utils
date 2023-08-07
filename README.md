@@ -40,6 +40,7 @@ directory of your choice.
 The following are pure Python or shell scripts:
   - [quote](quote)
   - [android-burp-cert](android-burp-cert)
+  - [extract-emails](extract-emails)
 
 
 ## License
