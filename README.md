@@ -41,6 +41,7 @@ The following are pure Python or shell scripts:
   - [quote](quote)
   - [android-burp-cert](android-burp-cert)
   - [extract-emails](extract-emails)
+  - [burp2json](burp2json)
 
 
 ## License
