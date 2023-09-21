@@ -2,7 +2,7 @@
 name = "utils"
 version = "0.1.0"
 description = "A set of utilities for daily hacking"
-authors = ["M. Choji <mchoji@users.noreply.github.com>"]
+authors = ["y0k4i <7395296+yok4i@users.noreply.github.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
